@@ -1,21 +1,31 @@
-// httpClient.ts
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface HttpClientConfig {
   baseURL?: string;
   headers?: Record<string, string>;
-  useInterceptor?: boolean; // Renombrado desde interceptorEnabled para mayor claridad
+  interceptors?: Array<(options: RequestInit) => void>; // Múltiples interceptores
+}
+
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    public message: string,
+    public data?: any
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
 }
 
 export class HttpClient {
   private baseURL: string;
   private headers: Record<string, string>;
-  private useInterceptor: boolean;
+  private interceptors: Array<(options: RequestInit) => void>;
 
   constructor(config: HttpClientConfig = {}) {
     this.baseURL = config.baseURL || "/api";
     this.headers = config.headers || {};
-    this.useInterceptor = config.useInterceptor || false;
+    this.interceptors = config.interceptors || [];
   }
 
   private async request(method: HttpMethod, url: string, data?: any) {
@@ -35,33 +45,23 @@ export class HttpClient {
           : undefined,
     };
 
-    if (this.useInterceptor) {
-      this.addInterceptor(options);
+    // Aplicar interceptores
+    for (const interceptor of this.interceptors) {
+      interceptor(options);
     }
 
     const response = await fetch(fullUrl, options);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null); // Maneja errores sin cuerpo JSON
-      throw new Error(
-        errorData?.message || response.statusText || "Unknown error occurred"
+      const errorData = await response.json().catch(() => null);
+      throw new HttpError(
+        response.status,
+        errorData?.message || response.statusText || "Unknown error occurred",
+        errorData
       );
     }
 
     return response.json();
-  }
-
-  private addInterceptor(options: RequestInit) {
-    const token = localStorage.getItem("token");
-    if (!token || token.trim() === "") {
-      console.warn("No token available for Authorization header.");
-      return;
-    }
-
-    options.headers = {
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    };
   }
 
   public get(url: string) {
@@ -85,13 +85,33 @@ export class HttpClient {
   }
 
   public setHeaders(headers: Record<string, string>) {
-    this.headers = headers;
+    this.headers = { ...this.headers, ...headers };
   }
 
-  public enableInterceptor(enable: boolean) {
-    this.useInterceptor = enable;
+  public removeHeader(headerKey: string) {
+    delete this.headers[headerKey];
+  }
+
+  public addInterceptor(interceptor: (options: RequestInit) => void) {
+    this.interceptors.push(interceptor);
+  }
+
+  public clearInterceptors() {
+    this.interceptors = [];
   }
 }
 
 export const httpClient = new HttpClient();
-export const securedHttpClient = new HttpClient({ useInterceptor: true });
+export const securedHttpClient = new HttpClient({
+  interceptors: [
+    (options: RequestInit) => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        options.headers = {
+          ...options.headers,
+          Authorization: `Bearer ${token}`,
+        };
+      }
+    },
+  ],
+});

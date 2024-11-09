@@ -1,5 +1,6 @@
+// index.ts
 export {
-  httpClient,
-  securedHttpClient,
-  HttpClient, // Exporta la clase HttpClient por si se necesitan instancias personalizadas
+  httpClient, // Default client instance
+  securedHttpClient, // Client with built-in token interceptor
+  HttpClient, // Export HttpClient class for creating custom instances
 } from "./httpClient";
