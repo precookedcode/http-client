@@ -61,7 +61,7 @@ securedHttpClient.get("/profile").then(response => {
 const customClient = new HttpClient({
   baseURL: "https://api.example.com",
   headers: { "X-Custom-Header": "MyValue" },
-  interceptorEnabled: true,
+  useInterceptor: true,
 });
 
 customClient.get("/custom-endpoint").then(response => {
