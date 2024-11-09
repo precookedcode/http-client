@@ -28,7 +28,7 @@ export class HttpClient {
     this.interceptors = config.interceptors || [];
   }
 
-  private async request(method: HttpMethod, url: string, data?: any) {
+  protected async request(method: HttpMethod, url: string, data?: any) {
     const fullUrl = `${this.baseURL}${url}`;
     const options: RequestInit = {
       method,
