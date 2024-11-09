@@ -1,20 +1,21 @@
+// httpClient.ts
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface HttpClientConfig {
   baseURL?: string;
   headers?: Record<string, string>;
-  interceptorEnabled?: boolean;
+  useInterceptor?: boolean; // Renombrado desde interceptorEnabled para mayor claridad
 }
 
 export class HttpClient {
   private baseURL: string;
   private headers: Record<string, string>;
-  private interceptorEnabled: boolean;
+  private useInterceptor: boolean;
 
   constructor(config: HttpClientConfig = {}) {
     this.baseURL = config.baseURL || "/api";
     this.headers = config.headers || {};
-    this.interceptorEnabled = config.interceptorEnabled || false;
+    this.useInterceptor = config.useInterceptor || false;
   }
 
   private async request(method: HttpMethod, url: string, data?: any) {
@@ -22,21 +23,29 @@ export class HttpClient {
     const options: RequestInit = {
       method,
       headers: {
-        "Content-Type": "application/json",
-        ...this.headers,
+        ...(method === "GET"
+          ? this.headers
+          : { "Content-Type": "application/json", ...this.headers }),
       },
-      body: method !== "GET" && data ? JSON.stringify(data) : undefined,
+      body:
+        method !== "GET" && data
+          ? data instanceof FormData
+            ? data
+            : JSON.stringify(data)
+          : undefined,
     };
 
-    if (this.interceptorEnabled) {
+    if (this.useInterceptor) {
       this.addInterceptor(options);
     }
 
     const response = await fetch(fullUrl, options);
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Error in request");
+      const errorData = await response.json().catch(() => null); // Maneja errores sin cuerpo JSON
+      throw new Error(
+        errorData?.message || response.statusText || "Unknown error occurred"
+      );
     }
 
     return response.json();
@@ -44,12 +53,15 @@ export class HttpClient {
 
   private addInterceptor(options: RequestInit) {
     const token = localStorage.getItem("token");
-    if (token) {
-      options.headers = {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-      };
+    if (!token || token.trim() === "") {
+      console.warn("No token available for Authorization header.");
+      return;
     }
+
+    options.headers = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
   }
 
   public get(url: string) {
@@ -77,9 +89,9 @@ export class HttpClient {
   }
 
   public enableInterceptor(enable: boolean) {
-    this.interceptorEnabled = enable;
+    this.useInterceptor = enable;
   }
 }
 
 export const httpClient = new HttpClient();
-export const securedHttpClient = new HttpClient({ interceptorEnabled: true });
+export const securedHttpClient = new HttpClient({ useInterceptor: true });
